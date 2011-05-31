@@ -17,8 +17,6 @@
     packets not starting with 'm00d' are discarded. the next char
     indicates the packet type: '!' simply writes the rest of the
     packet to the mood lamp, '#RRGGBB' writes a color.
-    note: initialization isn't implemented yet, so you have to start
-    up mld first. (is the initialization stuff documented somewhere?)
 */
 
 #include <iostream>
@@ -87,31 +85,54 @@ int openSerial(const char* devname= "/dev/ttyUSB0")
         return -1;
     }
 
-    return fd;  // todo: set serial parameters correctly
+    // return fd;  // todo: set serial parameters correctly
 
-//    cfsetispeed(&toptions, B115200);
-//    cfsetospeed(&toptions, B115200);
+    cfsetispeed(&toptions, B230400);
+    cfsetospeed(&toptions, B230400);
 
-//    tcflush(fd, TCOFLUSH);
-//    tcflush(fd, TCIFLUSH);
+    // #set up raw mode / no echo / binary
+    toptions.c_cflag|= CLOCAL|CREAD;
+    toptions.c_lflag&= ~(ICANON|ECHO|ECHOE|ECHOK|ECHONL|ISIG|IEXTEN);
 
-//    // 8N1
-//    toptions.c_cflag &= ~PARENB;
-//    toptions.c_cflag &= ~CSTOPB;
-//    toptions.c_cflag &= ~CSIZE;
-//    toptions.c_cflag |= CS8;
-//    // no flow control
-//    toptions.c_cflag &= ~CRTSCTS;
+    // #netbsd workaround for Erk
+    toptions.c_lflag&= ~(ECHOCTL|ECHOKE);
 
-//    // toptions.c_cflag |= CREAD | CLOCAL;  // turn on READ & ignore ctrl lines
-//    toptions.c_iflag &= ~(IXON | IXOFF | IXANY); // turn off s/w flow ctrl
+//        oflag &= ~(TERMIOS.OPOST)
+//        iflag &= ~(TERMIOS.INLCR|TERMIOS.IGNCR|TERMIOS.ICRNL|TERMIOS.IGNBRK)
+//        if hasattr(TERMIOS, 'IUCLC'):
+//            iflag &= ~TERMIOS.IUCLC
+//        if hasattr(TERMIOS, 'PARMRK'):
+//            iflag &= ~TERMIOS.PARMRK
+    toptions.c_oflag &= ~(OPOST);
+    toptions.c_iflag &= ~(INLCR|IGNCR|ICRNL|IGNBRK);
+    // #if hasattr(TERMIOS, 'IUCLC'):
+    toptions.c_iflag &= ~IUCLC;
+    // #if hasattr(TERMIOS, 'PARMRK'):
+    toptions.c_iflag &= ~PARMRK;
 
-//    toptions.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); // make raw
-//    toptions.c_oflag &= ~OPOST; // make raw
+    // char len: 8
+    toptions.c_cflag &= ~CSIZE;
+    toptions.c_cflag |= CS8;
 
-//    // see: http://unixwiz.net/techtips/termios-vmin-vtime.html
-//    toptions.c_cc[VMIN]  = 0;
-//    toptions.c_cc[VTIME] = 20;
+    // #setup stopbits (1)
+    toptions.c_cflag &= ~(CSTOPB);
+
+    // #setup parity(none)
+    toptions.c_iflag &= ~(INPCK|ISTRIP);
+    toptions.c_cflag &= ~(PARENB|PARODD);
+
+    // #setup flow control
+    // #xonxoff
+    toptions.c_iflag &= ~(IXON|IXOFF|IXANY);
+
+    // #rtscts
+    toptions.c_cflag &= ~(CRTSCTS);
+
+    // #buffer
+    // #vmin "minimal number of characters to be read. = for non blocking"
+    toptions.c_cc[VMIN]= 0;
+    // #vtime
+    toptions.c_cc[VTIME]= 0;
 
     if( tcsetattr(fd, TCSANOW, &toptions) < 0) {
         perror("init_serialport: Couldn't set term attributes");
@@ -138,7 +159,7 @@ int main()
     int serfd= openSerial();
     if(serfd<=0) exit(1);
 
-    FILE *serfile= fdopen(serfd, "rw");
+//    FILE *serfile= fdopen(serfd, "rw");
 
 //  write(3, "acI\1\2\2ab", 8)              = 8
 //  write(3, "acW\0ab", 6)                  = 6
@@ -173,7 +194,7 @@ int main()
             }
             buf[sz]= 0;
             moodpd_packet *p= (moodpd_packet*)buf;
-            if(p->magic != MOODPD_MAGIC || sz<sizeof(moodpd_packet))
+            if(p->magic != MOODPD_MAGIC || (unsigned)sz<sizeof(moodpd_packet))
             {
                 fprintf(stderr, "received malformed packet from %s.\n", inet_ntoa(sa_from.sin_addr));
                 continue;
@@ -202,12 +223,13 @@ int main()
                     int r= 0, g= 0, b= 0;
                     sscanf(p->message, "%02x%02x%02x", &r, &g, &b);
                     printf("color: %d %d %d\n", r, g, b);
+                    fflush(stdout);
                     //"acP\x02C\xRR\xGG\xBBab"
                     char ch[64];
                     sprintf(ch, "acP\2C%c%c%cab", r, g, b);
                     write(serfd, ch, 10);
-                    tcflush(serfd, TCOFLUSH);
-                    tcflush(serfd, TCIFLUSH);
+//                    tcflush(serfd, TCOFLUSH);
+//                    tcflush(serfd, TCIFLUSH);
                     break;
                 }
                 default:
