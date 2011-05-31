@@ -46,8 +46,8 @@ struct moodpd_packet
 {
     uint32_t magic;     // MOODPD_MAGIC
     char type;          // set to MOODPD_RAWMSG
-    char message[0];    // string to send to mood lamp
-} __attribute__((packed)); // for clarity. :p
+    char message[];     // message to send to mood lamp.
+};
 
 // assume little-endian.
 #define MOODPD_MAGIC    (*(uint32_t*)"m00d")
@@ -87,7 +87,7 @@ int openSerial(const char* devname= "/dev/ttyUSB0")
         return -1;
     }
 
-    return fd;  //////////////////////
+    return fd;  // todo: set serial parameters correctly
 
 //    cfsetispeed(&toptions, B115200);
 //    cfsetospeed(&toptions, B115200);
@@ -140,9 +140,6 @@ int main()
 
     FILE *serfile= fdopen(serfd, "rw");
 
-//    ioctl(serfd, TCFLSH, 0);
-//    ioctl(serfd, TCFLSH, 1);
-
 //  write(3, "acI\1\2\2ab", 8)              = 8
 //  write(3, "acW\0ab", 6)                  = 6
 
@@ -187,8 +184,6 @@ int main()
             {
                 case MOODPD_RAWMSG:
                 {
-                    //chomp(p->message);
-                    // printf("%s\r\n", p->message);
                     write(serfd, p->message, msgsize);
                     for(int i= 0; i<msgsize; i++)
                         printf("%02X ", p->message[i]);
