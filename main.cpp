@@ -15,8 +15,9 @@
         ...
 
     packets not starting with 'm00d' are discarded. the next char
-    indicates the packet type: '!' simply writes the rest of the
-    packet to the mood lamp, '#RRGGBB' writes a color.
+    indicates the packet type:
+        #RRGGBB writes a color (CMD_SET_COLOR)
+
 */
 
 #include <iostream>
