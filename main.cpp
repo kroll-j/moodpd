@@ -15,12 +15,15 @@
         ...
 
     packets not starting with 'm00d' are discarded. the next char
-    indicates the packet type:
-        #RRGGBB writes a color (CMD_SET_COLOR)
+    indicates the packet type.
+        #RRGGBB     writes a color (CMD_SET_COLOR)
 
+        BVV         sets global brightness to VV (CMD_SET_BRIGHTNESS)
+        FRRGGBBTTTT fade to color RRGGBB in TTTT milliseconds (CMD_FADEMS)
+        P           cycle pause state (CMD_PAUSE)
+        X           CMD_POWER
 */
 
-#include <iostream>
 #include <cstdio>
 #include <cstdlib>
 #include <memory.h>
@@ -34,19 +37,30 @@
 #include <fcntl.h>
 #include <termios.h>
 
+#include "cmd_handler.h"
+
+#ifndef max
+#define max(a, b) ((a)>(b)? (a): (b))
+#define min(a, b) ((a)<(b)? (a): (b))
+#endif
+
 enum moodpd_pkttype
 {
     MOODPD_RAWMSG= '!',
     MOODPD_COLOR= '#',
+    MOODPD_SETBRIGHTNESS= 'B',
+    MOODPD_FADEMS= 'F',
+    MOODPD_PAUSE= 'P',
+    MOODPD_POWER= 'X',
 };
 
-// moodpd packet structure. it's mostly just a string.
+// moodpd packet structure.
 struct moodpd_packet
 {
     uint32_t magic;     // MOODPD_MAGIC
-    char type;          // set to MOODPD_RAWMSG
+    char type;          // moodpd_pkttype
     char message[];     // message to send to mood lamp.
-};
+} __attribute__((packed)); // to prevent padding at the end of the structure
 
 // assume little-endian.
 #define MOODPD_MAGIC    (*(uint32_t*)"m00d")
@@ -73,7 +87,7 @@ int openSerial(const char* devname= "/dev/ttyUSB0")
     memset(&toptions, 0, sizeof(toptions));
     int fd;
 
-    fprintf(stderr,"init_serialport: opening port %s\n", devname);
+    fprintf(stderr, "init_serialport: opening port %s\n", devname);
 
     fd = open(devname, O_RDWR | O_NOCTTY | O_NDELAY);
     if (fd == -1)  {
@@ -86,8 +100,6 @@ int openSerial(const char* devname= "/dev/ttyUSB0")
         return -1;
     }
 
-    // return fd;  // todo: set serial parameters correctly
-
     cfsetispeed(&toptions, B230400);
     cfsetospeed(&toptions, B230400);
 
@@ -98,17 +110,9 @@ int openSerial(const char* devname= "/dev/ttyUSB0")
     // #netbsd workaround for Erk
     toptions.c_lflag&= ~(ECHOCTL|ECHOKE);
 
-//        oflag &= ~(TERMIOS.OPOST)
-//        iflag &= ~(TERMIOS.INLCR|TERMIOS.IGNCR|TERMIOS.ICRNL|TERMIOS.IGNBRK)
-//        if hasattr(TERMIOS, 'IUCLC'):
-//            iflag &= ~TERMIOS.IUCLC
-//        if hasattr(TERMIOS, 'PARMRK'):
-//            iflag &= ~TERMIOS.PARMRK
     toptions.c_oflag &= ~(OPOST);
     toptions.c_iflag &= ~(INLCR|IGNCR|ICRNL|IGNBRK);
-    // #if hasattr(TERMIOS, 'IUCLC'):
     toptions.c_iflag &= ~IUCLC;
-    // #if hasattr(TERMIOS, 'PARMRK'):
     toptions.c_iflag &= ~PARMRK;
 
     // char len: 8
@@ -135,7 +139,8 @@ int openSerial(const char* devname= "/dev/ttyUSB0")
     // #vtime
     toptions.c_cc[VTIME]= 0;
 
-    if( tcsetattr(fd, TCSANOW, &toptions) < 0) {
+    if( tcsetattr(fd, TCSANOW, &toptions) < 0)
+    {
         perror("init_serialport: Couldn't set term attributes");
         return -1;
     }
@@ -160,25 +165,23 @@ int main()
     int serfd= openSerial();
     if(serfd<=0) exit(1);
 
-//    FILE *serfile= fdopen(serfd, "rw");
-
-//  write(3, "acI\1\2\2ab", 8)              = 8
-//  write(3, "acW\0ab", 6)                  = 6
-
+    // write some magic undocumented initialization bytes...
     char init0[]= "acI\1\2\2ab";
     char init1[]= "acW\0ab";
     write(serfd, init0, sizeof(init0)-1);
     write(serfd, init1, sizeof(init1)-1);
 
+    puts("entering main loop.");
 
     fd_set readset;
     while(true)
     {
         FD_ZERO(&readset);
         FD_SET(sock, &readset);
+        FD_SET(serfd, &readset);
 
         // we could just blocking recvfrom(), but may want to poll more fds later.
-        if(select(sock+1, &readset, 0, 0, 0)<0)
+        if(select(max(sock, serfd)+1, &readset, 0, 0, 0)<0)
         { perror("select"); continue; }
 
         if(FD_ISSET(sock, &readset))
@@ -193,19 +196,21 @@ int main()
                 perror("recvfrom");
                 continue;
             }
-            buf[sz]= 0;
+            buf[sz]= 0; // zero-terminate message string
             moodpd_packet *p= (moodpd_packet*)buf;
-            if(p->magic != MOODPD_MAGIC || (unsigned)sz<sizeof(moodpd_packet))
+            if(p->magic != MOODPD_MAGIC || (unsigned)sz<=sizeof(moodpd_packet))
             {
                 fprintf(stderr, "received malformed packet from %s.\n", inet_ntoa(sa_from.sin_addr));
                 continue;
             }
 
+            char ch[64];
             int msgsize= sz-offsetof(moodpd_packet, message);
             switch(p->type)
             {
                 case MOODPD_RAWMSG:
                 {
+                    break; // xxx disabled for now (dangerous)
                     write(serfd, p->message, msgsize);
                     for(int i= 0; i<msgsize; i++)
                         printf("%02X ", p->message[i]);
@@ -223,20 +228,67 @@ int main()
                     }
                     int r= 0, g= 0, b= 0;
                     sscanf(p->message, "%02x%02x%02x", &r, &g, &b);
-                    printf("color: %d %d %d\n", r, g, b);
-                    fflush(stdout);
-                    //"acP\x02C\xRR\xGG\xBBab"
-                    char ch[64];
                     sprintf(ch, "acP\2C%c%c%cab", r, g, b);
                     write(serfd, ch, 10);
-//                    tcflush(serfd, TCOFLUSH);
-//                    tcflush(serfd, TCIFLUSH);
+                    break;
+                }
+                case MOODPD_SETBRIGHTNESS:
+                {
+                    chomp(p->message);
+                    msgsize= strlen(p->message);
+                    if(msgsize!=2)
+                    {
+                        fprintf(stderr, "bad brightness string %s\n", p->message);
+                        break;
+                    }
+                    int b;
+                    sscanf(p->message, "%02x", &b);
+                    sprintf(ch, "ac%c%cab", CMD_SET_BRIGHTNESS, b);
+                    write(serfd, ch, 6);
+                    break;
+                }
+                case MOODPD_FADEMS:
+                {
+                    chomp(p->message);
+                    msgsize= strlen(p->message);
+                    if(msgsize!=10)
+                    {
+                        fprintf(stderr, "bad fade parameters %s\n", p->message);
+                        break;
+                    }
+                    int r, g, b, time;
+                    sscanf(p->message, "%02x%02x%02x%04x", &r, &g, &b, &time);
+                    sprintf(ch, "ac%c%c%c%c%c%cab", CMD_FADEMS, r,g,b, (time>>8)&0xff, time&0xff);
+                    write(serfd, ch, 10);
+                    break;
+                }
+                case MOODPD_PAUSE:
+                {
+                    sprintf(ch, "ac%cab", CMD_PAUSE);
+                    write(serfd, ch, 5);
+                    break;
+                }
+                case MOODPD_POWER:
+                {
+                    sprintf(ch, "ac%cab", CMD_POWER);
+                    write(serfd, ch, 5);
                     break;
                 }
                 default:
                     fprintf(stderr, "unknown packet type 0x%02X.\n", p->type);
                     break;
             }
+        }
+        if(FD_ISSET(serfd, &readset))
+        {
+            char txt[1024];
+            int n= read(serfd, txt, 1023);
+//            if(n<=0) continue; // xxx
+//            txt[n]= 0;
+//            printf("the mood lamp says: '");
+//            fflush(stdout);
+//            write(STDOUT_FILENO, txt, n);
+//            puts("'");
         }
     }
 
