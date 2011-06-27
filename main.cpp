@@ -22,7 +22,9 @@
         FRRGGBBTTTT fade to color RRGGBB in TTTT milliseconds (CMD_FADEMS)
         P           cycle pause state (CMD_PAUSE)
         X           CMD_POWER
-        !...        send raw command bytes to mood lamp (only if enabled on command line, see below)
+        !...        send raw command bytes to mood lamp (only if enabled, see below)
+    
+    run moodpd -h for help, press '?' in interactive mode for help on keys
 */
 
 #include <cstdio>
@@ -348,7 +350,7 @@ class moodpd
                             }
                         }
                         if(pfd.revents&POLLOUT)
-                            flog(LOG_INFO, "serial ready for writing.\n"),
+                            flog(LOG_INFO, "serial ready for writing. buffer size: %d\n", serial.getWritebufferSize()),
                             serial.flush();
                     }
                     else if(pfd.fd==STDIN_FILENO)
