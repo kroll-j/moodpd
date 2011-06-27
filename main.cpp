@@ -134,12 +134,12 @@ class SerialIO: public NonblockWriter
 
 			fd = ::open(devname, O_RDWR | O_NOCTTY | O_NDELAY);
 			if (fd == -1)  {
-				perror("init_serialport: Unable to open port");
+				logerror("openSerial: open");
 				return -1;
 			}
 
 			if (tcgetattr(fd, &toptions) < 0) {
-				perror("init_serialport: Couldn't get term attributes");
+				logerror("openSerial: Couldn't get term attributes");
 				return -1;
 			}
 
@@ -184,7 +184,7 @@ class SerialIO: public NonblockWriter
 
 			if( tcsetattr(fd, TCSANOW, &toptions) < 0)
 			{
-				perror("init_serialport: Couldn't set term attributes");
+				logerror("openSerial: Couldn't set term attributes");
 				return -1;
 			}
 
@@ -309,7 +309,8 @@ class moodpd
                 {
                     pollfd &pfd= pollfds[i];
                     if(pfd.revents & (POLLERR|POLLRDHUP|POLLHUP|POLLNVAL))
-                        fail("poll");
+                        flog(LOG_CRIT, "poll: %sfd went bad.\n", pfd.fd==sock? "socket ": pfd.fd==serial.getFd()? "serial ": ""),
+                        exit(1);
                     if(pfd.fd==sock)
                     {
                         if(!pfd.revents&POLLIN) continue;

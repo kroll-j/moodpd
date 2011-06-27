@@ -8,12 +8,6 @@
 
 
 
-void fail(const char *msg= "")
-{
-    perror(msg);
-    exit(1);
-}
-
 
 inline void chomp(char *line) { int n; while( (n= strlen(line)) && strchr("\r\n", line[n-1])) line[n-1]= 0; }
 
@@ -54,6 +48,14 @@ inline void flog(Loglevel level, const char *fmt, ...)
 
 #define logerror(str)   \
     flog(LOG_ERROR, "%s: %s\n", str, strerror(errno))
+
+
+void fail(const char *msg= "")
+{
+    flog(LOG_CRIT, "%s: %s\n", msg, strerror(errno));
+    exit(1);
+}
+
 
 
 // set an fd to non-blocking mode
