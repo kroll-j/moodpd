@@ -226,6 +226,7 @@ void printHelp(char *comm)
            "                        i: log error and informational messages\n"
            "                        q: quiet mode, don't log anything\n"
            "                    flags can be combined.\n"
+	   "	-d		daemonize\n"
            "\n");
 }
 
@@ -257,6 +258,9 @@ class moodpd
                             case 'q':
                                 logMask= 0;
                                 break;
+			    case 'd':
+				daemonize();
+				break;
                             default:
                                 printf("unknown logging flag -- '%c'\n", optarg[i]);
                                 printHelp(argv[0]);
@@ -474,6 +478,14 @@ class moodpd
         bool allowRawMode;
         int sock;
         SerialIO serial;
+
+	void daemonize()
+	{
+		int i= fork();
+		if (i<0) exit(1); /* fork error */
+		if (i>0) exit(0); /* parent exits */
+		/* child (daemon) continues */
+	}
 };
 
 
