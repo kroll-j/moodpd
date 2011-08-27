@@ -238,7 +238,7 @@ class moodpd
         {
             // parse the command line.
             char opt;
-            while( (opt= getopt(argc, argv, "hl:"))!=-1 )
+            while( (opt= getopt(argc, argv, "hl:d"))!=-1 )
                 switch(opt)
                 {
                     case '?':
