@@ -258,15 +258,15 @@ class moodpd
                             case 'q':
                                 logMask= 0;
                                 break;
-			    case 'd':
-				daemonize();
-				break;
                             default:
                                 printf("unknown logging flag -- '%c'\n", optarg[i]);
                                 printHelp(argv[0]);
                                 exit(1);
                         }
                         break;
+		    case 'd':
+			daemonize();
+			break;
                 }
             
             setLineOrientedStdin();
