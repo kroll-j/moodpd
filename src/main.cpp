@@ -48,6 +48,10 @@
 #include <errno.h>
 #include <poll.h>
 #include <libgen.h>
+#include <iostream>
+
+#include <oscpkt.hh>
+#include <udp.hh>
 
 using namespace std;
 
@@ -145,6 +149,11 @@ class SerialIO: public NonblockWriter
 				logerror("openSerial: open");
 				return -1;
 			}
+            
+            if(!isatty(fd))
+                // don't try to setup anything if it's not a tty. 
+                // this allows redirecting stuff for testing.
+                return fd;
 
 			if (tcgetattr(fd, &toptions) < 0) {
 				logerror("openSerial: Couldn't get term attributes");
@@ -234,7 +243,8 @@ void printHelp(char *comm)
            "                        i: log error and informational messages\n"
            "                        q: quiet mode, don't log anything\n"
            "                    flags can be combined.\n"
-	   "	-d		daemonize\n"
+           "    -d              daemonize\n"
+           "    -t TTYNAME      set moodlamp tty [/dev/ttyUSB0]\n"
            "\n");
 }
 
@@ -244,9 +254,11 @@ class moodpd
     public:
         moodpd(int argc, char *argv[]): allowRawMode(false)
         {
+            string lamptty= "/dev/ttyUSB0";
+            
             // parse the command line.
             char opt;
-            while( (opt= getopt(argc, argv, "hl:d"))!=-1 )
+            while( (opt= getopt(argc, argv, "hl:dt:"))!=-1 )
                 switch(opt)
                 {
                     case '?':
@@ -272,9 +284,18 @@ class moodpd
                                 exit(1);
                         }
                         break;
-		    case 'd':
-			daemonize();
-			break;
+                    case 'd':
+                        daemonize();
+                        break;
+                    case 't':
+                        if(optarg)
+                            lamptty= optarg;
+                        else
+                        {
+                            printHelp(argv[0]);
+                            exit(1);
+                        }
+                        break;
                 }
 
             setLineOrientedStdin();
@@ -291,14 +312,20 @@ class moodpd
             if(bind(sock, (sockaddr*)&sa, sizeof(sa))<0)
                 fail("bind");
 
-            if(!serial.open()) fail("openSerial");
+            if(!serial.open(lamptty.c_str())) fail("openSerial");
+            
+            if(!oscSocket.bindTo(DEFAULT_PORT+1, oscpkt::UdpSocket::OPTION_UNSPEC)) 
+                fail("osc socket: bindTo() failed");
+            
+            
 
+#ifdef MUCPROTOCOL
             // write some magic undocumented initialization bytes...
             char init0[]= "acI\1\2\2ab";
             char init1[]= "acW\0ab";
             serial.write(init0, sizeof(init0)-1);
             serial.write(init1, sizeof(init1)-1);
-
+#endif
         }
 
         void run()
@@ -313,6 +340,7 @@ class moodpd
                 pollfds.push_back( (pollfd){ sock, POLLIN, 0 } );
                 pollfds.push_back( (pollfd){ serial.getFd(), POLLIN | (serial.writeBufferEmpty()? 0: POLLOUT), 0 } );
                 pollfds.push_back( (pollfd){ STDIN_FILENO, POLLIN, 0 } );
+                pollfds.push_back( (pollfd){ oscSocket.socketHandle(), POLLIN, 0 } );
 
                 if(poll(&pollfds.front(), pollfds.size(), -1)<0)
                     fail("poll");
@@ -390,6 +418,12 @@ class moodpd
                                 puts(allowRawMode? "allow raw mode ON": "allow raw mode OFF");
                                 break;
                         }
+                    }
+                    else if(pfd.fd==oscSocket.socketHandle())
+                    {
+                        if(!pfd.revents&POLLIN) continue;
+                        puts("OSC msg");
+                        oscSocket.receiveNextPacket(0);
                     }
                 }
             }
@@ -481,6 +515,7 @@ class moodpd
         bool allowRawMode;
         int sock;
         SerialIO serial;
+        oscpkt::UdpSocket oscSocket;
 
 	void daemonize()
 	{
