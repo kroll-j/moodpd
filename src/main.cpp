@@ -18,11 +18,13 @@
     indicates the packet type.
         #RRGGBB     writes a color (CMD_SET_COLOR)
 
-        BVV         sets global brightness to VV (CMD_SET_BRIGHTNESS)
-        FRRGGBBTTTT fade to color RRGGBB in TTTT milliseconds (CMD_FADEMS)
-        P           cycle pause state (CMD_PAUSE)
-        X           CMD_POWER
-        !...        send raw command bytes to mood lamp (only if enabled, see below)
+        !...        send raw command bytes to mood lamp (only if enabled)
+
+        old muccc-style commands (compile-time option, currently disabled):
+            BVV         sets global brightness to VV (CMD_SET_BRIGHTNESS)
+            FRRGGBBTTTT fade to color RRGGBB in TTTT milliseconds (CMD_FADEMS)
+            P           cycle pause state (CMD_PAUSE)
+            X           CMD_POWER
 
     run moodpd -h for help, press '?' in interactive mode for help on keys
 */
@@ -49,6 +51,8 @@
 
 using namespace std;
 
+// use muccc-style commands. currently disabled, new firmware uses other cmds. 
+// #define MUCPROTOCOL
 
 #include "cmd_handler.h"
 #include "utils.h"
@@ -100,9 +104,13 @@ class SerialIO: public NonblockWriter
         void writeCommand(const char *commandBytes, int length)
         {
             if(length<=0) fail("writeCommand");
+#ifdef MUCPROTOCOL
             write("acP\2", 4);
             write(commandBytes, length);
             write("ab", 2);
+#else
+            write(commandBytes, length);
+#endif
             if(logMask&(1<<LOG_INFO))
             {
                 flog(LOG_INFO, "writeCommand: 'acP\\x02");
@@ -409,19 +417,21 @@ class moodpd
                 case MOODPD_COLOR:
                 {
                     chomp(message);
-                    msgsize= strlen(message);
-                    if(msgsize!=6)
+                    int r= 0, g= 0, b= 0;
+                    int matches= sscanf(message, "%02x%02x%02x", &r, &g, &b);
+                    if(matches!=3)
                     {
                         flog(LOG_ERROR, "bad color string %s\n", message);
                         break;
                     }
-                    int r= 0, g= 0, b= 0;
-                    sscanf(message, "%02x%02x%02x", &r, &g, &b);
-    //                                sprintf(ch, "acP\2C%c%c%cab", r, g, b);
-    //                                serial.write(ch, 10);
+#ifdef MUCPROTOCOL
                     serial.writeCommandF("C%c%c%c", r, g, b);
+#else
+                    serial.writeCommandF("i%02x%02x%02x\n", r, g, b);
+#endif
                     break;
                 }
+#ifdef MUCPROTOCOL
                 case MOODPD_SETBRIGHTNESS:
                 {
                     chomp(message);
@@ -433,8 +443,6 @@ class moodpd
                     }
                     int b;
                     sscanf(message, "%02x", &b);
-    //                                sprintf(ch, "ac%c%cab", CMD_SET_BRIGHTNESS, b);
-    //                                serial.write(ch, 6);
                     serial.writeCommandF("%c%c", CMD_SET_BRIGHTNESS, b);
                     break;
                 }
@@ -449,25 +457,20 @@ class moodpd
                     }
                     int r, g, b, time;
                     sscanf(message, "%02x%02x%02x%04x", &r, &g, &b, &time);
-    //                                sprintf(ch, "ac%c%c%c%c%c%cab", CMD_FADEMS, r,g,b, (time>>8)&0xff, time&0xff);
-    //                                serial.write(ch, 10);
                     serial.writeCommandF("%c%c%c%c%c%c", CMD_FADEMS, r,g,b, (time>>8)&0xff, time&0xff);
                     break;
                 }
                 case MOODPD_PAUSE:
                 {
-    //                                sprintf(ch, "ac%cab", CMD_PAUSE);
-    //                                serial.write(ch, 5);
                     serial.writeCommandF("%c", CMD_PAUSE);
                     break;
                 }
                 case MOODPD_POWER:
                 {
-    //                                sprintf(ch, "ac%cab", CMD_POWER);
-    //                                serial.write(ch, 5);
                     serial.writeCommandF("%c", CMD_POWER);
                     break;
                 }
+#endif // MUCPROTOCOL
                 default:
                     flog(LOG_ERROR, "unknown packet type 0x%02X.\n", type);
                     break;
