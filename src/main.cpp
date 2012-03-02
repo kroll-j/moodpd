@@ -117,10 +117,10 @@ class SerialIO: public NonblockWriter
 #endif
             if(logMask&(1<<LOG_INFO))
             {
-                flog(LOG_INFO, "writeCommand: 'acP\\x02");
+                flog(LOG_INFO, "writeCommand: '");
                 for(int i= 0; i<length; i++)
                     fprintf(stderr, (isalpha(commandBytes[i])? "%c": "\\x%02X"), commandBytes[i]);
-                fprintf(stderr, "ab' (buffer size: %d)\n", getWritebufferSize());
+                fprintf(stderr, "' (buffer size: %d)\n", getWritebufferSize());
             }
         }
 
@@ -157,6 +157,7 @@ class SerialIO: public NonblockWriter
 
 			if (tcgetattr(fd, &toptions) < 0) {
 				logerror("openSerial: Couldn't get term attributes");
+                close(fd);
 				return -1;
 			}
 
@@ -202,6 +203,7 @@ class SerialIO: public NonblockWriter
 			if( tcsetattr(fd, TCSANOW, &toptions) < 0)
 			{
 				logerror("openSerial: Couldn't set term attributes");
+                close(fd);
 				return -1;
 			}
 
@@ -338,7 +340,7 @@ class moodpd
                 vector<pollfd> pollfds;
 
                 pollfds.push_back( (pollfd){ sock, POLLIN, 0 } );
-                pollfds.push_back( (pollfd){ serial.getFd(), POLLIN | (serial.writeBufferEmpty()? 0: POLLOUT), 0 } );
+                pollfds.push_back( (pollfd){ serial.getFd(), (isatty(serial.getFd())? POLLIN: 0) | (serial.writeBufferEmpty()? 0: POLLOUT), 0 } );
                 pollfds.push_back( (pollfd){ STDIN_FILENO, POLLIN, 0 } );
                 pollfds.push_back( (pollfd){ oscSocket.socketHandle(), POLLIN, 0 } );
 
@@ -422,8 +424,26 @@ class moodpd
                     else if(pfd.fd==oscSocket.socketHandle())
                     {
                         if(!pfd.revents&POLLIN) continue;
-                        puts("OSC msg");
-                        oscSocket.receiveNextPacket(0);
+                        flog(LOG_INFO, "OSC packet\n");
+                        if(oscSocket.receiveNextPacket(0))
+                        {
+                            oscpkt::PacketReader pr;
+                            oscpkt::Message *msg;
+                            pr.init(oscSocket.packetData(), oscSocket.packetSize());
+                            while(pr.isOk() && (msg = pr.popMessage()) != 0)
+                            {
+                                int r, g, b;
+                                if(msg->match("/moodpd/lamps/00")
+                                    .popInt32(r)
+                                    .popInt32(g)
+                                    .popInt32(b)
+                                    .isOkNoMoreArgs())
+                                {
+                                    flog(LOG_INFO, "osc: red %d, green %d, blue %d\n", r, g, b);
+                                    serial.writeCommandF("i%02x%02x%02x\n", r, g, b);
+                                }
+                            }
+                        }
                     }
                 }
             }
