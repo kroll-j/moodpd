@@ -308,7 +308,7 @@ class moodpd
 
                 if(poll(&pollfds.front(), pollfds.size(), -1)<0)
                     fail("poll");
-
+ 
                 for(int i= 0; i<pollfds.size(); i++)
                 {
                     pollfd &pfd= pollfds[i];
