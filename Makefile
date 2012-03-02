@@ -1,3 +1,3 @@
 
-moodpd:		main.cpp
-		g++ -O1 -ggdb -fno-exceptions -o moodpd main.cpp
+moodpd:		src/main.cpp src/*.h
+		g++ -O1 -ggdb -o moodpd src/main.cpp

@@ -1,7 +1,7 @@
 /*
     this is moodpd, a hack to forward udp packets to a muccc-style mood lamp.
     copyleft 2011, johannes kroll.
-	
+
     to use, send one command per packet:
         int sock= socket(AF_INET, SOCK_DGRAM, 0);
         char buf[1024];
@@ -23,7 +23,7 @@
         P           cycle pause state (CMD_PAUSE)
         X           CMD_POWER
         !...        send raw command bytes to mood lamp (only if enabled, see below)
-    
+
     run moodpd -h for help, press '?' in interactive mode for help on keys
 */
 
@@ -85,18 +85,18 @@ class SerialIO: public NonblockWriter
 	public:
 		SerialIO()
 		{ }
-        
+
         bool open(const char *devname= "/dev/ttyUSB0")
         {
 			NonblockWriter::setFd(openSerial(devname));
             return getFd()>=0;
         }
-		
-		void writeFailed(int _errno)
-		{
-			fail(strerror(_errno));
-		}
-        
+
+        void writeFailed(int _errno)
+        {
+            fail(strerror(_errno));
+        }
+
         void writeCommand(const char *commandBytes, int length)
         {
             if(length<=0) fail("writeCommand");
@@ -111,7 +111,7 @@ class SerialIO: public NonblockWriter
                 fprintf(stderr, "ab' (buffer size: %d)\n", getWritebufferSize());
             }
         }
-        
+
         void writeCommandF(const char *fmt, ...)
         {
             char ch[1024];
@@ -122,7 +122,7 @@ class SerialIO: public NonblockWriter
             if(nbytes>0) writeCommand(ch, nbytes);
             else fail("vsnprintf");
         }
-		
+
 	private:
 		int openSerial(const char* devname= "/dev/ttyUSB0")
 		{
@@ -196,7 +196,7 @@ void setLineOrientedStdin(bool restore= false)
 {
     static termios oldSettings;
     termios newSettings;
-    
+
     if(!restore)
     {
         tcgetattr(STDIN_FILENO, &oldSettings);
@@ -268,13 +268,13 @@ class moodpd
 			daemonize();
 			break;
                 }
-            
+
             setLineOrientedStdin();
             atexit(atexitfn);
 
             sock= socket(AF_INET, SOCK_DGRAM, 0);
             if(sock<0) fail("socket");
-            
+
             struct sockaddr_in sa;
             memset(&sa, 0, sizeof(sa));
             sa.sin_family= AF_INET;
@@ -282,7 +282,7 @@ class moodpd
             sa.sin_port= htons(DEFAULT_PORT);
             if(bind(sock, (sockaddr*)&sa, sizeof(sa))<0)
                 fail("bind");
-            
+
             if(!serial.open()) fail("openSerial");
 
             // write some magic undocumented initialization bytes...
@@ -290,9 +290,9 @@ class moodpd
             char init1[]= "acW\0ab";
             serial.write(init0, sizeof(init0)-1);
             serial.write(init1, sizeof(init1)-1);
-            
+
         }
-        
+
         void run()
         {
             flog(LOG_INFO, "entering main loop.\n");
@@ -301,14 +301,14 @@ class moodpd
             while(true)
             {
                 vector<pollfd> pollfds;
-                
+
                 pollfds.push_back( (pollfd){ sock, POLLIN, 0 } );
                 pollfds.push_back( (pollfd){ serial.getFd(), POLLIN | (serial.writeBufferEmpty()? 0: POLLOUT), 0 } );
                 pollfds.push_back( (pollfd){ STDIN_FILENO, POLLIN, 0 } );
-                
+
                 if(poll(&pollfds.front(), pollfds.size(), -1)<0)
                     fail("poll");
-                
+
                 for(int i= 0; i<pollfds.size(); i++)
                 {
                     pollfd &pfd= pollfds[i];
@@ -386,7 +386,7 @@ class moodpd
                 }
             }
         }
-        
+
         void parseMessage(char type, char *message, int msgsize)
         {
             char ch[64];
@@ -473,7 +473,7 @@ class moodpd
                     break;
             }
         }
-        
+
     private:
         bool allowRawMode;
         int sock;

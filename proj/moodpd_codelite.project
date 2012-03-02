@@ -8,9 +8,9 @@
   <Description/>
   <Dependencies/>
   <VirtualDirectory Name="src">
-    <File Name="../main.cpp"/>
-    <File Name="../cmd_handler.h"/>
-    <File Name="../utils.h"/>
+    <File Name="../src/main.cpp"/>
+    <File Name="../src/utils.h"/>
+    <File Name="../src/cmd_handler.h"/>
   </VirtualDirectory>
   <Settings Type="Executable">
     <GlobalSettings>

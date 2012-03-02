@@ -1,13 +1,6 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#ifndef max
-#define max(a, b) ((a)>(b)? (a): (b))
-#define min(a, b) ((a)<(b)? (a): (b))
-#endif
-
-
-
 
 inline void chomp(char *line) { int n; while( (n= strlen(line)) && strchr("\r\n", line[n-1])) line[n-1]= 0; }
 
@@ -50,7 +43,7 @@ inline void flog(Loglevel level, const char *fmt, ...)
     flog(LOG_ERROR, "%s: %s\n", str, strerror(errno))
 
 
-void fail(const char *msg= "")
+inline void fail(const char *msg= "")
 {
     flog(LOG_CRIT, "%s: %s\n", msg, strerror(errno));
     exit(1);
