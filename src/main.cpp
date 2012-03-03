@@ -433,12 +433,15 @@ class moodpd
                             while(pr.isOk() && (msg = pr.popMessage()) != 0)
                             {
                                 int r, g, b;
-                                if(msg->match("/moodpd/lamps/00")
+                                if(msg->match("/moodpd/lamps/00/rgb")
                                     .popInt32(r)
                                     .popInt32(g)
                                     .popInt32(b)
                                     .isOkNoMoreArgs())
                                 {
+                                    r= min(255, max(r, 0));
+                                    g= min(255, max(g, 0));
+                                    b= min(255, max(b, 0));
                                     flog(LOG_INFO, "osc: red %d, green %d, blue %d\n", r, g, b);
                                     serial.writeCommandF("i%02x%02x%02x\n", r, g, b);
                                 }
