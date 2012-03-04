@@ -2,31 +2,9 @@
     this is moodpd, a hack to forward udp packets to a muccc-style mood lamp.
     copyleft 2011, johannes kroll.
 
-    to use, send one command per packet:
-        int sock= socket(AF_INET, SOCK_DGRAM, 0);
-        char buf[1024];
-        snprintf(buf, sizeof(buf), "m00d#%02X%02X%02X", red, green, blue);
-        sendto(sock, buf, strlen(buf), address...);
-
-    from the command line:
-        $ socat - UDP4-DATAGRAM:localhost:4242,
-        m00d#104080
-        m00d#f0f0f0
-        ...
-
-    packets not starting with 'm00d' are discarded. the next char
-    indicates the packet type.
-        #RRGGBB     writes a color (CMD_SET_COLOR)
-
-        !...        send raw command bytes to mood lamp (only if enabled)
-
-        old muccc-style commands (compile-time option, currently disabled):
-            BVV         sets global brightness to VV (CMD_SET_BRIGHTNESS)
-            FRRGGBBTTTT fade to color RRGGBB in TTTT milliseconds (CMD_FADEMS)
-            P           cycle pause state (CMD_PAUSE)
-            X           CMD_POWER
-
     run moodpd -h for help, press '?' in interactive mode for help on keys
+    
+    see README for commands etc
 */
 
 #include <cstdio>
