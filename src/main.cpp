@@ -445,6 +445,18 @@ class moodpd
                                     flog(LOG_INFO, "osc: red %d, green %d, blue %d\n", r, g, b);
                                     serial.writeCommandF("i%02x%02x%02x\n", r, g, b);
                                 }
+                                else if(msg->match("/ori") // andOSC android app thingy
+                                    .popInt32(r)
+                                    .popInt32(g)
+                                    .popInt32(b)
+                                    .isOkNoMoreArgs())
+                                {
+                                    flog(LOG_INFO, "andOSC orientation: %d, %d, %d\n", r, g, b);
+                                    r= (r+180)%360*255/360;
+                                    g= (g+180)%360*255/360;
+                                    b= (b+180)%360*255/360;
+                                    serial.writeCommandF("i%02x%02x%02x\n", r, g, b);
+                                }
                             }
                         }
                     }
