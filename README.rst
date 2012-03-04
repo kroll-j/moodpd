@@ -1,7 +1,7 @@
 moodpd
 ======
 
-A simple daemon which listens to udp packets and controls color of connected moodlamp. Runs on trieste at `sublab <https://sublab.org/>`_ Leipzig.
+A simple daemon which listens to udp packets and controls color of connected `moodlamp <http://wiki.muc.ccc.de/moodlamp>`_. Runs on trieste at `sublab <https://sublab.org/>`_ Leipzig. 
 
 
 Raw command packet format
