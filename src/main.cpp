@@ -27,6 +27,7 @@
 #include <poll.h>
 #include <libgen.h>
 #include <iostream>
+#include <stddef.h>
 
 #include <oscpkt.hh>
 #include <udp.hh>
@@ -98,7 +99,7 @@ class SerialIO: public NonblockWriter
                 flog(LOG_INFO, "writeCommand: '");
                 for(int i= 0; i<length; i++)
                     fprintf(stderr, (isprint(commandBytes[i])? "%c": "\\x%02X"), commandBytes[i]);
-                fprintf(stderr, "' (buffer size: %d)\n", getWritebufferSize());
+                fprintf(stderr, "' (buffer size: %zu)\n", getWritebufferSize());
             }
         }
 
@@ -321,7 +322,7 @@ class moodpd
 
                 pollfds.push_back( (pollfd){ sock, POLLIN, 0 } );
                 pollfds.push_back( (pollfd){ serial.getFd(), (isatty(serial.getFd())? POLLIN: 0) | (serial.writeBufferEmpty()? 0: POLLOUT), 0 } );
-                pollfds.push_back( (pollfd){ STDIN_FILENO, POLLIN, 0 } );
+                if(isatty(STDIN_FILENO)) pollfds.push_back( (pollfd){ STDIN_FILENO, POLLIN, 0 } );
                 pollfds.push_back( (pollfd){ oscSocket.socketHandle(), POLLIN, 0 } );
 
                 if(poll(&pollfds.front(), pollfds.size(), -1)<0)

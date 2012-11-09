@@ -3,6 +3,8 @@ import time
 import pypm
 import liblo
 
+moodpd_addr= 'osc.udp://localhost:4243/' 	#'osc.udp://trieste:4243/'
+
 
 def FindControllerDevice():
     for loop in range(pypm.CountDevices()):
@@ -14,7 +16,7 @@ if __name__ == '__main__':
     midi= pypm.Input(FindControllerDevice())
     controllerState= [0]*128
     while True:
-        while not midi.Poll(): time.sleep(.1)   # no way to read blocking?!
+        while not midi.Poll(): time.sleep(.01)   # no way to read blocking?!
         MidiData = midi.Read(32)
         for msg in MidiData[-1:]:   # only use the last message. the dali controllers won't react that fast anyway.
             if msg[0][0]>>4==0x0B:
@@ -43,7 +45,7 @@ if __name__ == '__main__':
                         oscmsg.add(controllerState[0])
                         oscmsg.add(controllerState[1])
                         oscmsg.add(controllerState[2])
-                    liblo.send('osc.udp://trieste:4243/', oscmsg)
+                    liblo.send(moodpd_addr, oscmsg)
                 else:                                   # dali
                     path= '/dali/lamps/%02d/bright' % ((controller%4)+1)
                     oscmsg= liblo.Message(path)
